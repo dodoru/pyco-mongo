@@ -367,7 +367,7 @@ class MongoMixin(object):
             self.save()
 
     def recover(self):
-        if self.delete():
+        if self.deleted:
             self.deleted = False
             self.save()
 
