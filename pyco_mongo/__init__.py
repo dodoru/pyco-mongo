@@ -269,12 +269,7 @@ class MongoMixin(object):
         sort_key = kwargs.pop('__sort_key', 'id')  # key or list
         sort_dir = kwargs.pop('__sort_dir', ASCENDING)  # 升序 1， 降序 -1
         en = cls.collection().find(kwargs).sort(sort_key, sort_dir)
-        ds = en.skip(skip).limit(limit)
-        return ds
-
-    @classmethod
-    def pagination(cls, skip=0, limit=20, **kwargs):
-        ds = cls.paging(skip, limit, **kwargs)
+        ds = en.skip(skip).limit(limit) # Cursor
         ms = [cls._new_with_bson(d) for d in ds]
         return ms
 
@@ -414,4 +409,3 @@ class MongoMixin(object):
         for m in ms:
             delattr(m, key)
             m.save()
-
