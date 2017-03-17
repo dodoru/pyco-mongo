@@ -17,6 +17,13 @@ from pymongo import (
     ASCENDING,
     DESCENDING,
 )
+from .errors import (
+    MongoLocked,
+    MongoNotFound,
+    MongoKeyFrozen,
+    MongoKeyUndefined,
+    MongoFieldUnmovable,
+)
 
 env = os.environ.get
 mongodb_uri = env('MONGODB_URI', "mongodb://localhost:27017")
@@ -79,6 +86,8 @@ def _coll_cur_id(collection):
     # 某数据集合当前的id
     query = {'name': collection}
     obj = __seq_col.find_one(query)
+    if obj is None:
+        raise MongoNotFound(collection)
     seq = obj.get(__seq_key)
     return seq
 
@@ -331,7 +340,7 @@ class MongoMixin(object):
                     setattr(self, k, v)
                 else:
                     name = self.__class__.__name__
-                    raise pyco_mongoKeyFrozen(name, k)
+                    raise MongoKeyFrozen(name, k)
         self.updated_time = int(time.time())
         self.save()
 
@@ -340,7 +349,7 @@ class MongoMixin(object):
         保存数据
         '''
         if self.is_locked():
-            raise pyco_mongoLocked(self)
+            raise MongoLocked(self)
         else:
             data = self.__dict__  # 一般和 self.to_dict() 一致
             self.collection().save(data)
@@ -391,7 +400,7 @@ class MongoMixin(object):
     def _add_field(cls, key, default_value):
         ''' require update cls.__fields__ before cls._add_field() '''
         if key not in cls.keys():
-            raise pyco_mongoKeyUndefined(cls.__name__, key)
+            raise MongoKeyUndefined(cls.__name__, key)
         ms = cls.find()
         for m in ms:
             setattr(m, key, default_value)
@@ -400,29 +409,9 @@ class MongoMixin(object):
     @classmethod
     def _del_field(cls, key):
         if key in cls.keys():
-            raise pyco_mongoFieldUnmovable(cls.__name__, key)
+            raise MongoFieldUnmovable(cls.__name__, key)
         ms = cls.find()
         for m in ms:
             delattr(m, key)
             m.save()
 
-
-class pyco_mongoLocked(Exception):
-    def __init__(self, obj):
-        self.data = obj
-        self.msg = '[MongoMixin]: locked instance is not savable.'
-
-
-class pyco_mongoKeyFrozen(Exception):
-    def __init__(self, collection, field_key):
-        self.msg = '[MongoMixin]: {}._frozen_key({}) is immutable.'.format(collection, field_key)
-
-
-class pyco_mongoKeyUndefined(Exception):
-    def __init__(self, collection, field_key):
-        self.msg = "[MongoMixin]: The Key({}) is undefined in {}.__fields__".format(field_key, collection)
-
-
-class pyco_mongoFieldUnmovable(Exception):
-    def __init__(self, collection, field_key):
-        self.msg = '[MongoMixin]: The Field({}) is still in {}.__fields__ '.format(field_key, collection)
