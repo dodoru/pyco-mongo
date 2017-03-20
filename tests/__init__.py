@@ -81,8 +81,8 @@ class TestMongoMinxin(TestCase):
         assert uid == u.id
         assert u.username == uname
         assert u.keys() == ks
-        assert 'type' in u.json()
-        assert 'type' not in u.to_dict()
+        assert '_type' in u.json()
+        assert '_type' not in u.to_dict()
 
     def test_lock(self):
         u = T_User(username='loser')
@@ -121,7 +121,6 @@ class TestMongoMinxin(TestCase):
             phone='222224',
         )
         u1 = T_User.upsert(query, update)
-        print(111111111111111111111, u1.id, uid)
         # assert u1.id == uid
         assert u1.username == uname
         assert u1.phone == '222224'

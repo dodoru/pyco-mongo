@@ -3,9 +3,10 @@
 """
     pyco_mongo
     ~~~~~~~~~~~~~~~~~~~
-    Adds basic support for data model on MongoDB.
-    :copyright: (c) 2017 by Gua, Dodoru.
-    :license: BSD, see LICENSE for more details.
+    which encapsulates MongoMixin by pymongo,
+    make use of MongoDB in someway like relative database.
+    :copyright: (c) 2017 by Dodoru.
+    :license: MIT, see LICENSE for more details.
 """
 
 from __future__ import absolute_import
@@ -207,11 +208,11 @@ class MongoMixin(object):
         """
         json 函数返回 model 的 json 字典,
         1. 默认不包括隐式字段的数据, 比如_id
-        2. 默认有type ，默认值为类名
+        2. 默认有_type ，默认值为类名
         """
         td = self.to_dict()
         d = {k: v for k, v in td.items() if not k.startswith('_')}
-        d['type'] = self.__class__.__name__
+        d['_type'] = self.__class__.__name__
         return d
 
     def __eq__(self, others):
