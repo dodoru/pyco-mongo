@@ -372,6 +372,20 @@ class MongoMixin(object):
             self.deleted = False
             self.save()
 
+    def _force_update(self, **kwargs):
+        """
+        # Update object in force, even value of frozen keys would be updated.
+        # Besides, you can't get frozen keys by cls._frozen_keys().
+        # self.update() is strongly recommended to use instead of self._force_update()
+        !! danger, use in extreme caution
+        """
+        query = {
+            'id': self.id,
+        }
+        update = {
+            '$set': kwargs,
+        }
+        self.collection().find_and_modify(query=query, update=update)
     def _remove(self):
         '''
         :return: 硬删除，慎用
