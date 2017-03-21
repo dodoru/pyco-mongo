@@ -39,7 +39,8 @@ __seq_key = 'seq'
 
 def _next_id(collection_name):
     """
-    用来给 mongo 的数据模型生成一个 自增的数字 id, 默认放在 seqcoll 表里
+    create a unique index of MongoMixin by increase object.id automatically.
+    mongo.__seq_cal saves the mappings, which indexes subclass of MongoMixin.
     """
     query = {
         'name': collection_name,
@@ -62,7 +63,7 @@ def _next_id(collection_name):
 
 def _reset_id(collection_name, id=1):
     """
-    慎用
+    !! danger, use in extreme caution
     """
     query = {
         'name': collection_name,
@@ -84,7 +85,9 @@ def _reset_id(collection_name, id=1):
 
 
 def _coll_cur_id(collection):
-    # 某数据集合当前的id
+    """
+    # latest object.id of collection
+    """
     query = {'name': collection}
     obj = __seq_col.find_one(query)
     if obj is None:
@@ -94,7 +97,9 @@ def _coll_cur_id(collection):
 
 
 def _drop(collection_name):
-    # 删除某数据集合，慎用
+    '''
+    # drop collection with clear index-mapping in mongo.__seq_col
+    '''
     op1 = db.drop_collection(collection_name)
     op2 = __seq_col.find_one_and_delete(filter={"name": collection_name})
     op1['seq_info'] = op2
@@ -102,15 +107,19 @@ def _drop(collection_name):
 
 
 class MongoMixin(object):
+    '''
+    # fields ,[(key, type, value),...],
+    # looks like MongoMixin.__immutable_fields()
+
+    # frozen_keys, [key1, key2,...] ,
+    # values of frozen_keys should not update by cls.update()
+    '''
     __fields__ = []
     __frozen_keys__ = []
 
-    # fields 的样式[(字段名, 类型, 值),...]
-    # 格式和 __immutable_fields 一致
-    # frozen_keys [字段名, 字段名,...] 不能通过 update 软更新
-
     @classmethod
     def __immutable_keys(cls):
+        #  values of cls.__immutable_keys should not be update by cls.update()
         ks = [
             '_id',
             'id',
@@ -119,9 +128,13 @@ class MongoMixin(object):
 
     @classmethod
     def __fixed_fields(cls):
+        """
+        Key Features of MongoMixin.
+        !! danger, sub-class of MongoMixin should not rewrite cls.__fixed_fields.
+        """
         fs = [
-            # (字段名, 类型, 值)
-            # 以 _开头的字段名，为隐式键，不会包括在json()中
+            # (key, type, value)
+            # key start with '_' is implicit key, which should be protected.
             ('_id', ObjectId, None),
             ('id', int, -1),
             ('deleted', bool, False),
@@ -170,18 +183,28 @@ class MongoMixin(object):
         return db[name]
 
     def lock(self):
+        '''
+        # Key Features of MongoMixin. Don't cover it in sub-class.
+        '''
         setattr(self, '__locked', True)
 
     def unlock(self):
+        '''
+        # Key Features of MongoMixin. Don't cover it in sub-class.
+        '''
         if hasattr(self, '__locked'):
             delattr(self, '__locked')
 
     def is_locked(self):
+        '''
+        # Key Features of MongoMixin. Don't cover it in sub-class.
+        '''
         return hasattr(self, '__locked')
 
     def __init__(self, **kwargs):
         '''
-        :param kwargs: 设置 fields 的字段值，如果没有，使用默认值
+        :param kwargs: set key-values of fields，
+        if value is not found in key-values，use default value predefined in self._fields()
         '''
         for f in self._fields():
             k, t, v = f
@@ -202,7 +225,10 @@ class MongoMixin(object):
         return mf == mt
 
     def to_dict(self):
-        # 作用相似 __dict__
+        '''
+         In general, self.to_dict() is the same as self.__dict__
+        :return: normalize with self.keys()
+        '''
         keys = self.keys()
         data = {}
         for k in keys:
@@ -211,9 +237,9 @@ class MongoMixin(object):
 
     def json(self):
         """
-        json 函数返回 model 的 json 字典,
-        1. 默认不包括隐式字段的数据, 比如_id
-        2. 默认有_type ，默认值为类名
+        :return dictionary which satisfied JSON Object.
+        : should not include implicit key set in cls._fields(), eg: _id
+        : always include '_type', which indicate the collection name.
         """
         td = self.to_dict()
         d = {k: v for k, v in td.items() if not k.startswith('_')}
@@ -223,15 +249,13 @@ class MongoMixin(object):
     @classmethod
     def new(cls, **kwargs):
         """
-        new 是给外部使用的函数， 用于创建并保存新数据
-        例如
+        new instance of MongoMixin and save automatically.
+        eg:
         form = {
             'task': '吃饭',
         }
-        t = Todo.new(form, user_id=1)
-        new 是自动 save 的, 所以使用后不需要 save
+        t = Todo.new(**form, user_id=1)
         """
-        # 创建一个空对象
         m = cls(**kwargs)
         m.id = _next_id(cls.__name__)
         ts = int(time.time())
@@ -244,9 +268,7 @@ class MongoMixin(object):
     @classmethod
     def _new_with_bson(cls, bson):
         """
-        这是给内部函数使用的函数
-        从 mongo 数据中恢复一个 model
-        你不用关心
+        retrieve object to instance of MongoMixin.
         """
         m = cls(**bson)
         m.unlock()
@@ -267,8 +289,16 @@ class MongoMixin(object):
 
     @classmethod
     def paging(cls, skip=0, limit=20, **kwargs):
+        '''
+        :param skip: int, skips the first `skip` results of this cursor.
+        :param limit: int, maximum limit of results.
+        :param kwargs:
+            __sort_key: key to sort results
+            __sort_dir: direction to sort results, ASCENDING==1
+        :return: list instance of MongoMixin
+        '''
         sort_key = kwargs.pop('__sort_key', 'id')  # key or list
-        sort_dir = kwargs.pop('__sort_dir', ASCENDING)  # 升序 1， 降序 -1
+        sort_dir = kwargs.pop('__sort_dir', ASCENDING)
         en = cls.collection().find(kwargs).sort(sort_key, sort_dir)
         ds = en.skip(skip).limit(limit) # Cursor
         ms = [cls._new_with_bson(d) for d in ds]
@@ -277,13 +307,9 @@ class MongoMixin(object):
     @classmethod
     def find(cls, **kwargs):
         """
-        mongo 数据查询
-        例如
-        ts = Todo.find(user_id=1)
-        返回的是 list
-        找不到就是 []
+        : query objects, return list of instance.
+        : if no object is satisfied, return [].
         """
-        # kwargs.setdefault('deleted', False)  # 默认只查找没删除的数据
         sort_key = kwargs.pop('__sort_key', None)
         ds = cls.collection().find(kwargs)
         if sort_key is not None:
@@ -293,13 +319,15 @@ class MongoMixin(object):
 
     @classmethod
     def get(cls, id):
+        """
+        :param id: int, unique, value of key("id") set in cls.__immutable_keys(),
+        """
         return cls.find_one(id=id)
 
     @classmethod
     def find_one(cls, **kwargs):
         """
-        和 find 一样， 但是只返回第一个元素
-        找不到就返回 None
+        :return: If no object is match, return None, else return only one instance.
         """
         bson = cls.collection().find_one(kwargs)
         if bson is not None:
@@ -309,24 +337,21 @@ class MongoMixin(object):
     @classmethod
     def upsert(cls, query, update):
         '''
-        这个东西略微复杂 你可以忽略
-        :param query:  查询数据的条件， eg {'id':1}
-        :param update: 更新数据的键值， eg {'name':'new_name'}
-        :param hard:  默认为False, 如果设置为 True, 可更新 __fields__ 尚未预定义好的属性
-        :return: 查询数据，如果没有数据，就插入数据； 如果有数据，就更新数据；
+        :param query: dict, Conditions for querying data， eg {'id':1}
+        :param update: dict, Key-Values to update softly， eg {'name':'new_name'}
+        :return: if object is existed, then update softly, else new an instance.
         '''
         ms = cls.find_one(**query)
         if ms is None:
             query.update(**update)
             ms = cls.new(**query)
         else:
-            ms.update(**update, hard=hard)
+            ms.update(**update)
         return ms
 
     def update(self, **kwargs):
         '''
-        :param form: 更新数据，form 是一个表单
-        :param hard: 默认为 False, 如果设置为 True, 可更新 __frozen_keys__ 的值
+        :param **kwargs: key-values to update keys softly, which not in self._frozen_keys()
         '''
         for k, v in kwargs.items():
             if hasattr(self, k):
@@ -341,7 +366,10 @@ class MongoMixin(object):
 
     def save(self):
         '''
-        保存数据
+        # save unlocked object into collection of db
+        # object via cls.new() is unlocked by calling self.unlock() automatically.
+        # object via cls.__init__() (or cls()) is locked by calling self.lock().
+        !! danger, sub-class of MongoMixin should not rewrite self.save()
         '''
         if self.is_locked():
             raise MongoLocked(self)
@@ -351,13 +379,16 @@ class MongoMixin(object):
 
     def delete(self):
         '''
-        删除数据，这里的数据是一种逻辑删除
+        # delete object in logical, which can be recovered.
         '''
         if not self.deleted:
             self.deleted = True
             self.save()
 
     def recover(self):
+        '''
+        # recover object which was deleted.
+        '''
         if self.deleted:
             self.deleted = False
             self.save()
@@ -376,18 +407,19 @@ class MongoMixin(object):
             '$set': kwargs,
         }
         self.collection().find_and_modify(query=query, update=update)
+
     def _remove(self):
-        '''
-        :return: 硬删除，慎用
-        '''
+        """
+        # remove object, con't not be recover.
+        !! danger, use in extreme caution
+        """
         self.collection().remove(self._id)
 
     @classmethod
     def _rename_field(cls, origin, target):
         """
-        清洗数据用的函数
-        例如 User._rename_field('is_hidden', 'deleted')
-        把 is_hidden 字段重命名为 deleted 字段
+        # require rewrite code of cls.__fields__ after cls._rename_field()
+        !! danger, use in extreme caution
         """
         ms = cls.find()
         for m in ms:
@@ -398,7 +430,10 @@ class MongoMixin(object):
 
     @classmethod
     def _add_field(cls, key, default_value):
-        ''' require update cls.__fields__ before cls._add_field() '''
+        """
+        # require rewrite code of cls.__fields__ before cls._del_field()
+        !! danger, use in extreme caution
+        """
         if key not in cls.keys():
             raise MongoKeyUndefined(cls.__name__, key)
         ms = cls.find()
