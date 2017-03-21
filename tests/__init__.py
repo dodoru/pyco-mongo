@@ -192,3 +192,24 @@ class TestMongoMinxin(TestCase):
         print(type(u))
         assert len(ps) == 1
         assert isinstance(ps[0], type(u))
+
+    def test_filter_by_field_values(self):
+        for i in range(20):
+            v = 'user_{}'.format(i)
+            T_User.new(username=v)
+        c = 10
+        vs = ['user_{}'.format(x) for x in range(c)]
+        ms = T_User.find()
+        ds = T_User.filter_by_field_values(ms, key='username', values=vs)
+        dc = len(ds)
+        assert (dc == c)
+
+    def test_group_by_field_values(self):
+        for i in range(20):
+            v = 'user_{}'.format(i)
+            T_User.new(username=v)
+        c = 10
+        vs = ['user_{}'.format(x) for x in range(c)]
+        ms = T_User.find()
+        ds = T_User.group_by_field_values(ms, key='username', values=vs)
+        assert len(ds) == len(vs) == c
