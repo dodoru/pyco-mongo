@@ -111,24 +111,25 @@ class TestMongoMinxin(TestCase):
         assert u2 == u
 
     def test_upsert(self):
-        uid = pyco_mongo._coll_cur_id('User') + 1
-        uname = 'xxx{}'.format(uid)
         query = dict(
-            username=uname,
-            email='xxxxxxxxx@email.com',
+            username='user_xxx',
+            email='user_xxx@email.com',
         )
+        phone = str(random.randint(1000000, 10000000))
         update = dict(
-            phone='222224',
+            phone=phone
         )
         u1 = T_User.upsert(query, update)
-        # assert u1.id == uid
-        assert u1.username == uname
-        assert u1.phone == '222224'
+        assert u1.username == 'user_xxx'
+        assert u1.email == 'user_xxx@email.com'
+        assert u1.phone == phone
+        phone = str(random.randint(1000000, 10000000))
         update = dict(
-            phone='222224',
+            phone=phone,
         )
         u2 = T_User.upsert(query, update)
         assert u2.id == u1.id
+        assert u2.phone == phone
 
     def test_add_field(self):
         try:
