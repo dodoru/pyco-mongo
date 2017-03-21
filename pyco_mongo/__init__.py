@@ -307,7 +307,7 @@ class MongoMixin(object):
             return m
 
     @classmethod
-    def upsert(cls, query, update, hard=False):
+    def upsert(cls, query, update):
         '''
         这个东西略微复杂 你可以忽略
         :param query:  查询数据的条件， eg {'id':1}
@@ -328,11 +328,10 @@ class MongoMixin(object):
         :param form: 更新数据，form 是一个表单
         :param hard: 默认为 False, 如果设置为 True, 可更新 __frozen_keys__ 的值
         '''
-        hard = kwargs.pop('hard', False)
         for k, v in kwargs.items():
             if hasattr(self, k):
                 mutable = k not in self._frozen_keys()
-                if hard or mutable:
+                if mutable:
                     setattr(self, k, v)
                 else:
                     name = self.__class__.__name__
