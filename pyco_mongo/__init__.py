@@ -350,15 +350,6 @@ class MongoMixin(object):
             data = self.__dict__  # 一般和 self.to_dict() 一致
             self.collection().save(data)
 
-    def _update(self, **kwargs):
-        query = {
-            'id': self.id,
-        }
-        update = {
-            '$set': kwargs,
-        }
-        self.collection().find_and_modify(query=query, update=update)
-
     def delete(self):
         '''
         删除数据，这里的数据是一种逻辑删除
