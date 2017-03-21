@@ -196,6 +196,11 @@ class MongoMixin(object):
         properties = ('{0} = {1}'.format(k, v) for k, v in self.__dict__.items())
         return '<{0}: \n  {1}\n>'.format(name, '\n  '.join(properties))
 
+    def __eq__(self, others):
+        mf = self.to_dict()
+        mt = others.to_dict()
+        return mf == mt
+
     def to_dict(self):
         # 作用相似 __dict__
         keys = self.keys()
@@ -214,11 +219,6 @@ class MongoMixin(object):
         d = {k: v for k, v in td.items() if not k.startswith('_')}
         d['_type'] = self.__class__.__name__
         return d
-
-    def __eq__(self, others):
-        mf = self.to_dict()
-        mt = others.to_dict()
-        return mf == mt
 
     @classmethod
     def new(cls, **kwargs):
