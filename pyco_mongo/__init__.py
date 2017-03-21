@@ -404,9 +404,34 @@ class MongoMixin(object):
 
     @classmethod
     def _del_field(cls, key):
+        """
+        # require rewrite code of cls.__fields__ before cls._del_field()
+        !! danger, use in extreme caution
+        """
         if key in cls.keys():
             raise MongoFieldUnmovable(cls.__name__, key)
         ms = cls.find()
         for m in ms:
             delattr(m, key)
             m.save()
+
+    @classmethod
+    def filter_by_field_values(cls, models, key, values):
+        """
+        :param instances: models of MongoMixin
+        :param key: field key
+        :param values: list of values
+        :return: [instance1, instance2, ...]
+        """
+        ds = list(filter(lambda m: (getattr(m, key)) in values, models))
+        return ds
+
+    @classmethod
+    def group_by_field_values(cls, models, key, values):
+        # :param instances: models of MongoMixin
+        ds = dict((v, []) for v in values)
+        for m in models:
+            v = getattr(m, key)
+            if v in values:
+                ds[v].append(m)
+        return ds
